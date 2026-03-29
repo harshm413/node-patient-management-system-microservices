@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+  namespace: patient-mgmt
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: patient-service
+  template:
+    metadata:
+      labels:
+        app: patient-service
+    spec:
+      containers:
+        - name: patient-service
+          image: patient-mgmt/patient-service:latest
+          imagePullPolicy: Never
+          env:
+            - name: PORT
+              value: "4000"
+            - name: DATABASE_URL
+              value: postgresql://admin_user:password@host.k3d.internal:15433/db
+            - name: BILLING_SERVICE_ADDRESS
+              value: billing-service
+            - name: BILLING_SERVICE_GRPC_PORT
+              value: "9001"
+            - name: KAFKA_BROKERS
+              value: host.k3d.internal:19094
+          ports:
+            - containerPort: 4000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patient-service
+  namespace: patient-mgmt
+spec:
+  selector:
+    app: patient-service
+  ports:
+    - port: 4000
+      targetPort: 4000

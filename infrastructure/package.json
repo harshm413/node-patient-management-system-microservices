@@ -1,0 +1,19 @@
+{
+  "name": "infrastructure",
+  "version": "1.0.0",
+  "description": "AWS CDK infrastructure for Patient Management System",
+  "scripts": {
+    "build": "tsc",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "ts-node": "^10.9.0",
+    "aws-cdk": "^2.170.0"
+  }
+}

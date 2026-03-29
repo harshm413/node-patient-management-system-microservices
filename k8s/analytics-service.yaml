@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: patient-mgmt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+    spec:
+      containers:
+        - name: analytics-service
+          image: patient-mgmt/analytics-service:latest
+          imagePullPolicy: Never
+          env:
+            - name: PORT
+              value: "4002"
+            - name: KAFKA_BROKERS
+              value: host.k3d.internal:19094
+          ports:
+            - containerPort: 4002
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: patient-mgmt
+spec:
+  selector:
+    app: analytics-service
+  ports:
+    - port: 4002
+      targetPort: 4002
