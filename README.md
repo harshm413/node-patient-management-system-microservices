@@ -1,95 +1,75 @@
-# Patient Management System - Node.js/TypeScript Microservices
+# Patient Management System — Node.js/TypeScript Microservices
 
-A Node.js/TypeScript replica of the [Java/Spring Boot microservices course](https://github.com/chrisblakely01/java-spring-microservices) by Chris Blakely.
+A 5-service microservices system demonstrating three inter-service communication patterns: REST (HTTP), gRPC (synchronous RPC), and Kafka (async event streaming).
+
+## Architecture
+
+```
+┌──────────┐     HTTP      ┌──────────────┐    HTTP     ┌─────────────────┐
+│  Client  │──────────────▶│  API Gateway │────────────▶│ Patient Service │
+└──────────┘               │   (4004)     │             │     (4000)      │
+                           └──────┬───────┘             └───┬─────────┬───┘
+                                  │                         │         │
+                           HTTP (validate)              gRPC │     Kafka│
+                                  │                         │         │
+                           ┌──────▼───────┐         ┌──────▼──┐  ┌───▼──────────┐
+                           │ Auth Service │         │ Billing  │  │  Analytics   │
+                           │   (4005)     │         │ (9001)   │  │   (4002)     │
+                           └──────────────┘         └──────────┘  └──────────────┘
+```
+
+## Communication Patterns
+
+| Pattern | Between | Why |
+|---------|---------|-----|
+| REST/HTTP | Gateway → Auth (validate JWT) | Simple request-response for auth checks |
+| gRPC + Protobuf | Patient → Billing | Low-latency synchronous call, type-safe contract |
+| Kafka + Protobuf | Patient → Analytics | Async event streaming, no immediate response needed |
 
 ## Services
 
-| Service | Port | Description |
-|---|---|---|
-| auth-service | 4005 | JWT authentication (login + validate) |
-| patient-service | 4000 | Patient CRUD, gRPC billing client, Kafka producer |
-| billing-service | 4001 (HTTP), 9001 (gRPC) | gRPC billing account creation |
-| analytics-service | 4002 | Kafka consumer for patient events |
-| api-gateway | 4004 | Request routing + JWT validation |
+| Service | Port(s) | Database | Role |
+|---------|---------|----------|------|
+| API Gateway | 4004 | None | Routes requests, validates JWT via Auth Service |
+| Auth Service | 4005 | PostgreSQL (Prisma) | Login, JWT token generation and validation |
+| Patient Service | 4000 | PostgreSQL (Prisma) | Patient CRUD, calls Billing via gRPC, publishes to Kafka |
+| Billing Service | 4001 (HTTP) + 9001 (gRPC) | None | gRPC server, creates billing accounts |
+| Analytics Service | 4002 | None | Kafka consumer, processes patient events |
 
 ## Tech Stack
 
-- **Runtime**: Node.js 21, TypeScript
-- **Web Framework**: Express.js
+- **Runtime**: Node.js, TypeScript
+- **Framework**: Express.js
 - **ORM**: Prisma (PostgreSQL)
-- **Authentication**: jsonwebtoken + bcryptjs
-- **gRPC**: @grpc/grpc-js + @grpc/proto-loader
-- **Messaging**: KafkaJS + Protocol Buffers
-- **API Docs**: swagger-jsdoc + swagger-ui-express
-- **API Gateway**: http-proxy-middleware + axios
-- **Infrastructure**: AWS CDK (TypeScript), Terraform (HCL)
-- **Testing**: Vitest + axios
+- **gRPC**: @grpc/grpc-js, @grpc/proto-loader, Protocol Buffers
+- **Messaging**: KafkaJS with Protobuf serialization
+- **Auth**: jsonwebtoken, bcryptjs
+- **Testing**: Vitest (integration tests)
+- **API Docs**: Swagger/OpenAPI (swagger-jsdoc + swagger-ui-express)
+- **Deployment**: Docker (multi-stage builds), Docker Compose, Kubernetes (k3d), Nginx
 
-## Project Structure
-
-```
-├── proto/                  # Shared protobuf definitions
-├── auth-service/           # Authentication service
-├── patient-service/        # Patient CRUD service
-├── billing-service/        # Billing gRPC service
-├── analytics-service/      # Analytics Kafka consumer
-├── api-gateway/            # API Gateway
-├── infrastructure/         # AWS CDK stack
-├── terraform/              # AWS Terraform stack
-├── integration-tests/      # End-to-end tests
-├── api-requests/           # HTTP request samples
-└── grpc-requests/          # gRPC request samples
-```
-
-## Environment Variables
-
-### Auth Service
-| Variable | Default | Description |
-|---|---|---|
-| PORT | 4005 | HTTP server port |
-| DATABASE_URL | — | PostgreSQL connection string |
-| JWT_SECRET | Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM= | Base64-encoded HMAC key |
-
-### Patient Service
-| Variable | Default | Description |
-|---|---|---|
-| PORT | 4000 | HTTP server port |
-| DATABASE_URL | — | PostgreSQL connection string |
-| BILLING_SERVICE_ADDRESS | localhost | Billing gRPC host |
-| BILLING_SERVICE_GRPC_PORT | 9001 | Billing gRPC port |
-| KAFKA_BROKERS | localhost:9092 | Comma-separated Kafka brokers |
-
-### Billing Service
-| Variable | Default | Description |
-|---|---|---|
-| PORT | 4001 | HTTP server port |
-| GRPC_PORT | 9001 | gRPC server port |
-
-### Analytics Service
-| Variable | Default | Description |
-|---|---|---|
-| PORT | 4002 | HTTP server port |
-| KAFKA_BROKERS | — | Comma-separated Kafka brokers |
-
-### API Gateway
-| Variable | Default | Description |
-|---|---|---|
-| PORT | 4004 | HTTP server port |
-| AUTH_SERVICE_URL | http://localhost:4005 | Auth service URL |
-| PATIENT_SERVICE_URL | http://localhost:4000 | Patient service URL |
-| PROFILE | — | Set to `prod` for Docker URLs |
-
-## Running a Service Locally
+## Running Locally
 
 ```bash
-cd auth-service
-npm install
-npx prisma generate
-npm run dev
+# Start all services with Docker Compose
+docker-compose up --build
+
+# Services available at:
+# Gateway:   http://localhost:4004
+# Auth:      http://localhost:4005
+# Patient:   http://localhost:4000
+# Billing:   http://localhost:4001
+# Analytics: http://localhost:4002
 ```
 
-## Test User
+## Key Design Decisions
 
-- Email: testuser@test.com
-- Password: password123
-- Role: ADMIN
+- **Database-per-service**: Each service owns its data, no shared databases
+- **Protobuf for both gRPC and Kafka**: Type-safe contracts and efficient binary serialization
+- **API Gateway pattern**: Single entry point, centralized auth validation
+- **Multi-stage Docker builds**: Small production images, non-root users
+- **Nginx reverse proxy**: Single entry point with security headers
+
+## Python Duplication
+
+This entire project was also fully replicated in Python (FastAPI, SQLAlchemy, Alembic, grpcio, kafka-python) — same architecture, same APIs, same deployment. See [python-patient-management-system-microservices](https://github.com/harshm413/python-patient-management-system-microservices).
